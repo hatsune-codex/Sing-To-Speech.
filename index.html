@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign to Speech</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #1a1a2e;
+      color: white;
+    }
+    .container {
+      text-align: center;
+    }
+    video, canvas {
+      border-radius: 12px;
+      margin: 10px;
+    }
+    #subtitles {
+      margin-top: 15px;
+      padding: 10px;
+      background: #222;
+      border-radius: 8px;
+      font-size: 1.2em;
+    }
+    button {
+      margin: 5px;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
+      background: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🖐️ Sign to Speech</h1>
+  <!-- VIDEO (oculto, solo fuente para MediaPipe) -->
+<video id="video" class="hidden" playsinline></video>
+
+<!-- CANVAS (lo que se ve en pantalla) -->
+<canvas id="canvas" class="w-full rounded-xl ring-1 ring-white/10"></canvas>
+
+    <div>
+      <button id="btnStartCam">Iniciar cámara</button>
+      <button id="btnStopCam">Detener cámara</button>
+    </div>
+    <div id="subtitles">Esperando cámara...</div>
+  </div>
+
+  <!-- Librerías de MediaPipe -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const subtitles = document.getElementById("subtitles");
+    const btnStartCam = document.getElementById("btnStartCam");
+    const btnStopCam = document.getElementById("btnStopCam");
+
+    // Configuración de Hands
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7
+    });
+
+    hands.onResults(results => {
+      // Ajustar canvas al tamaño del video
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Dibujar video
+      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+      // Dibujar landmarks si hay manos
+      if (results.multiHandLandmarks) {
+        for (const landmarks of results.multiHandLandmarks) {
+          drawConnectors(ctx, landmarks, HAND_CONNECTIONS,
+            { color: "#D923DB", lineWidth: 3 });
+          drawLandmarks(ctx, landmarks, { color: "#00FF00", lineWidth: 2 });
+        }
+        subtitles.textContent = "👋 Mano detectada";
+      } else {
+        subtitles.textContent = "❌ No se detecta mano";
+      }
+      ctx.restore();
+    });
+
+    let cameraMediapipe;
+
+    btnStartCam.addEventListener("click", () => {
+      cameraMediapipe = new Camera(video, {
+        onFrame: async () => {
+          await hands.send({ image: video });
+        },
+        width: 640,
+        height: 480
+      });
+      cameraMediapipe.start();
+    });
+
+    btnStopCam.addEventListener("click", () => {
+      if (cameraMediapipe) {
+        cameraMediapipe.stop();
+      }
+      video.srcObject = null;
+      subtitles.textContent = "⏹️ Cámara detenida";
+    });
+  </script>
+</body>
+</html>
