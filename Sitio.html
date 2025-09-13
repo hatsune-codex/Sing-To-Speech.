@@ -201,7 +201,10 @@ function predictKNN(feat, k=3){
 }
 
 // ====== REGLAS RÁPIDAS PARA SEÑAS (sin entrenar) ======
-function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y, dz=(a.z||0)-(b.z||0); return Math.hypot(dx,dy,dz); }
+function dist(a,b){ 
+  const dx=a.x-b.x, dy=a.y-b.y, dz=(a.z||0)-(b.z||0); 
+  return Math.hypot(dx,dy,dz); 
+}
 function isExtended(lm, tip, pip){ return lm[tip].y < lm[pip].y; }
 function isCurled(lm, tip, pip){ return lm[tip].y > lm[pip].y; }
 function thumbExtended(lm, handed='Right'){
@@ -209,7 +212,7 @@ function thumbExtended(lm, handed='Right'){
   const tip = lm[4].x, ip = lm[3].x;
   return right ? (tip > ip + 0.02) : (tip < ip - 0.02);
 }
-function near(a,b,rel){ return (dist(a,b)/rel) < 0.5; } // útil para OK
+function near(a,b,rel){ return (dist(a,b)/rel) < 0.5; } // útil para "OK"
 
 function classifyRuleBased(lm, handed='Right'){
   const ext = {
@@ -227,38 +230,85 @@ function classifyRuleBased(lm, handed='Right'){
   const tExt = thumbExtended(lm, handed);
   const scale = dist(lm[0], lm[5]) + 1e-6;
 
-  // A (puño): todos curvados, pulgar no muy extendido
+  // ====== LETRAS A–Z ======
+  // A: puño cerrado
   if (cur.i && cur.m && cur.r && cur.p && !tExt) return {label:'A', conf:0.95};
 
-  // B (mano abierta): cuatro dedos extendidos (pulgar libre)
+  // B: mano abierta, palma al frente
   if (ext.i && ext.m && ext.r && ext.p) return {label:'B', conf:0.9};
 
-  // L: índice + pulgar extendidos; medio/anular/meñique curvados
-  if (ext.i && tExt && cur.m && cur.r && cur.p) return {label:'L', conf:0.9};
+  // C: dedos curvados en forma de "C"
+  if (ext.i && ext.m && ext.r && ext.p && tExt &&
+      lm[8].x > lm[0].x+0.05) return {label:'C', conf:0.85};
 
-  // Y: pulgar + meñique extendidos; índice/medio/anular curvados
-  if (tExt && ext.p && cur.i && cur.m && cur.r) return {label:'Y', conf:0.9};
-
-  // F (OK): pulgar-índice tocándose
-  if (near(lm[4], lm[8], scale)) return {label:'F', conf:0.9}; // también útil como "OK"
-
-  // D: índice extendido, resto curvos, pulgar no extendido
+  // D: índice extendido, resto curvos
   if (ext.i && cur.m && cur.r && cur.p && !tExt) return {label:'D', conf:0.85};
 
-  // G: índice + pulgar extendidos en horizontal, resto curvos (similar a L pero más "alineados" en y)
-  if (ext.i && tExt && cur.m && cur.r && cur.p && Math.abs(lm[4].y - lm[8].y) < 0.05) return {label:'G', conf:0.85};
+  // E: puño pero dedos curvados hacia la palma (pulgar adelante)
+  // TODO: afinar condición
+  if (cur.i && cur.m && cur.r && cur.p && tExt) return {label:'E', conf:0.8};
 
-  // THUMBS_UP: pulgar arriba, resto curvos
-  if (tExt && cur.i && cur.m && cur.r && cur.p && lm[4].y < lm[2].y) return {label:'THUMBS_UP', conf:0.9};
+  // F: "OK" (índice + pulgar tocándose)
+  if (near(lm[4], lm[8], scale)) return {label:'F', conf:0.9};
 
-  // PEACE: índice + medio extendidos, anular + meñique curvos
-  if (ext.i && ext.m && cur.r && cur.p) return {label:'PEACE', conf:0.9};
+  // G: índice + pulgar extendidos en horizontal
+  if (ext.i && tExt && cur.m && cur.r && cur.p && 
+      Math.abs(lm[4].y - lm[8].y) < 0.05) return {label:'G', conf:0.85};
 
-  // ILY: pulgar + índice + meñique extendidos; medio + anular curvos
-  if (tExt && ext.i && ext.p && cur.m && cur.r) return {label:'ILY', conf:0.9};
+  // H: índice + medio extendidos en horizontal
+  if (ext.i && ext.m && cur.r && cur.p) return {label:'H', conf:0.85};
+
+  // I: meñique extendido solo
+  if (ext.p && cur.i && cur.m && cur.r) return {label:'I', conf:0.9};
+
+  // J: como I pero con movimiento (dinámico, difícil con foto)
+  // TODO: implementar con trayectoria
+
+  // K: índice + medio extendidos, pulgar entre ellos
+  // TODO: reglas finas
+  if (ext.i && ext.m && tExt && cur.r && cur.p) return {label:'K', conf:0.8};
+
+  // L: índice + pulgar extendidos
+  if (ext.i && tExt && cur.m && cur.r && cur.p) return {label:'L', conf:0.9};
+
+  // M, N, R, S, T: letras con dedos sobre el pulgar
+  // TODO: muy específicas, mejor usar dataset + KNN
+
+  // O: dedos tocando formando círculo
+  if (near(lm[8], lm[4], scale) &&
+      near(lm[12], lm[4], scale) &&
+      near(lm[16], lm[4], scale) &&
+      near(lm[20], lm[4], scale)) return {label:'O', conf:0.85};
+
+  // P, Q, U, V, W, X, Z: también requieren ajustes
+  // TODO: completar con condiciones
+
+  // Y: pulgar + meñique extendidos
+  if (tExt && ext.p && cur.i && cur.m && cur.r) return {label:'Y', conf:0.9};
 
   return {label:null, conf:0};
 }
+
+// ====== Traducción rápida (solo ejemplo) ======
+const SIGN_TRANSLATE = {
+  'THUMBS_UP':'¡Bien!',
+  'PEACE':'Paz',
+  'ILY':'Te quiero',
+  'F':'OK',
+  'A':'A',
+  'B':'B',
+  'C':'C',
+  'D':'D',
+  'E':'E',
+  'G':'G',
+  'H':'H',
+  'I':'I',
+  'L':'L',
+  'O':'O',
+  'Y':'Y'
+  // El resto puedes ir agregando
+};
+
 
 // Traducción para señas por reglas (palabras)
 const SIGN_TRANSLATE = {
@@ -432,3 +482,4 @@ document.addEventListener('keydown', (e)=>{
 
 </body>
 </html>
+
